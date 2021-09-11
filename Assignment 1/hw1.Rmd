@@ -1,0 +1,28 @@
+---
+title: "hw1"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+#import
+data<-read.csv("C:/Users/Administrator/Desktop/2020/PRSA_data_2010.1.1-2014.12.31.csv")
+#descriptive
+summary(data)
+str(data)
+#Transform
+data1<-data$DEWP
+is.numeric(data1)
+#true
+data2<-as.character(data1)
+is.numeric(data2)
+#false
+is.character(data2)
+#true
+#plot
+plot(data$PRES)
+plot(data$DEWP,data$pres,main="Scatterplot Example", 
+   xlab="DEWP ", ylab="Pressure ")
