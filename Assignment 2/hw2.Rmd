@@ -1,0 +1,101 @@
+---
+title: '222222'
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library(caret)
+library(dummies)
+library(FNN)
+bank<- read.csv("UniversalBank.csv")
+data<-bank[,-c(1,5)]
+#factor education and personal loan
+data$Education = as.factor(data$Education)
+data$Personal.Loan<-as.factor(data$Personal.Loan)
+
+#make education to dummy variables
+dummy<-dummyVars(~Education, data=data)
+head(predict(dummy,data))
+bank1 <- data.frame(predict(dummy, newdata = data))
+bank_dummy<-cbind(bank1,data)
+bank_dummy<-bank_dummy[,-9]
+
+#normalization
+norm_model<-preProcess(bank_dummy,method = c('range'))
+bank_normalized <- predict(norm_model,bank_dummy)
+
+#separate data
+set.seed(1234)
+test_data = createDataPartition(data$Personal.Loan,p=0.6, list=FALSE)
+train_data <- bank_normalized[as.numeric(test_data),]
+validate_data<- bank_normalized[-as.numeric(test_data),]
+#knn model
+knn_model<-knn(train_data[,-10],validate_data[,-10],cl=train_data$Personal.Loan,k=1,prob=TRUE)
+
+#1
+customer1 <- data.frame(Age = 40, Experience = 10, Income = 84, Family = 2, CCAvg = 2, Education.1 = 0, Education.2 = 1, Education.3 = 0, Mortgage = 0, Securities.Account = 0, CD.Account = 0, Online = 1, CreditCard = 1)
+
+knn(train_data[,-10],predict(norm_model,customer1),cl=train_data$Personal.Loan,k=1,prob=TRUE)
+#answer =0 customer be classified no loan.
+
+#2
+#assume k from 1~15 use diag to find out the k value and plot to find out the best k value.
+accuracy.df <- data.frame(k = seq(1, 15, 1), accuracy = rep(NA, 15)) 
+for(i in 1:15) { 
+  perd <- knn(train_data[,-10],validate_data[,-10],cl=train_data$Personal.Loan,k=i)
+  accuracy.df[i, 2] <- sum(diag(table(perd, as.factor(validate_data$Personal.Loan))))/nrow(validate_data)
+} 
+plot(accuracy.df,type='b')
+```
+```{r}
+#k=1, accuracy is the maximum, so K=1 is the best choice.
+#3 confusion matrix
+perd <- knn(train_data[,-10],validate_data[,-10],cl=train_data$Personal.Loan,k=1) 
+table(perd, as.factor(validate_data$Personal.Loan))
+confusionMatrix(perd, as.factor(validate_data$Personal.Loan))
+
+#4
+knn(train_data[,-10],predict(norm_model,customer1),cl=train_data$Personal.Loan,k=1,prob=TRUE)
+#use k=1 customer classified as no loan.
+
+#5
+#separate data 5:3:2
+folds<-createFolds(data$Personal.Loan, k = 10, list = F, returnTrain = FALSE)
+train_data <- bank_normalized[folds<6,]
+validate_data<- bank_normalized[folds>=6 & folds<9,]
+test_data<- bank_normalized[folds>=9,]
+
+accuracy.df <- data.frame(k = seq(1, 15, 1), accuracy = rep(NA, 15)) 
+for(i in 1:15) { 
+  perd <- knn(train_data[,-10],validate_data[,-10],cl=train_data$Personal.Loan,k=i) 
+  accuracy.df[i, 2] <- sum(diag(table(perd, as.factor(validate_data$Personal.Loan))))/nrow(validate_data)
+} 
+plot(accuracy.df,type='b')
+#test data
+perd <- knn(train_data[,-10],test_data[,-10],cl=train_data$Personal.Loan,k=1) 
+table(perd, as.factor(test_data$Personal.Loan))
+confusionMatrix(perd, as.factor(test_data$Personal.Loan))
+#validate data
+perd <- knn(train_data[,-10],validate_data[,-10],cl=train_data$Personal.Loan,k=1) 
+table(perd, as.factor(validate_data$Personal.Loan))
+confusionMatrix(perd, as.factor(validate_data$Personal.Loan))
+#train data
+perd <- knn(train_data[,-10],train_data[,-10],cl=train_data$Personal.Loan,k=1) 
+table(perd, as.factor(train_data$Personal.Loan))
+confusionMatrix(perd, as.factor(train_data$Personal.Loan))
+
+#test data accuracy=0.957
+#validate data accuracy=0.959
+#train data accuracy=1
+#when we choose the k value we are chose the best performances value, the train data participate in model training to fit the model. validate participate in model to find out the best performances model. test data don't participate model, it just to test the model's performances. so for accuracy train>validate>test.
+
+```
+
+
+
+
