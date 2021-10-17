@@ -1,0 +1,67 @@
+---
+title: '3333'
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+library(e1071)
+library(reshape2)
+library(caret)
+set.seed(1234)
+UniversalBank<-read.csv('UniversalBank.csv')
+#factor Personal.Loan,online and CreditCard
+UniversalBank$Personal.Loan = as.factor(UniversalBank$Personal.Loan)
+UniversalBank$Online = as.factor(UniversalBank$Online)
+UniversalBank$CreditCard = as.factor(UniversalBank$CreditCard)
+#40% to validation 
+test_data = createDataPartition(UniversalBank$Personal.Loan,p=0.4, list=FALSE)
+#a pivot table
+dcast(UniversalBank[-as.numeric(test_data),],CreditCard+Personal.Loan~Online)
+
+#b
+54/(490+54)=0.09926471
+
+# c
+#Loan (rows) Online (columns)
+dcast(UniversalBank[-as.numeric(test_data),],Personal.Loan~Online)
+#Loan (rows)credit card (columns)
+dcast(UniversalBank[-as.numeric(test_data),],Personal.Loan~CreditCard)
+
+#d
+# 1
+95/(193+95)=0.3298611
+# 2
+179/(179+109)=0.6215278
+# 3
+(179+109)/(179+109+1091+1621)=0.096
+#OR 
+(193+95)/(193+95+1914+798)=0.096
+# 4
+798/(1914+798)=0.2942478
+# 5
+1621/(1091+1621)=0.5977139
+# 6
+(1914+798)/(1914+798+193+95)=0.904
+
+#e(1*2*3)/(1*2*3+4*5*6)
+(0.3298611*0.6215278*0.096)/((0.3298611*0.6215278*0.096)+(0.2942478*0.5977139*0.904))=0.1101546
+
+
+#f
+b is best because e was calculated by naive Bayes for credit card and online was mutual independence but credit card and online was not mutual independence. naive Bayes was based on Multi - conditional classification algorithm it assume different condition was mutual independence. for b it was directly calculated by number so b accurate is more than e.
+# g 
+all entries in this table are needed for computing P(Loan = 1 | CC = 1, Online = 1), is was calculate by (1*2*3)/(1*2*3+4*5*6).
+# to prevent 0 and 1 to be numeric so make a dataframe call X and all the variable to be factor. 
+X<-data.frame(CC=factor(UniversalBank$CreditCard[-as.numeric(test_data)]),Online=factor(UniversalBank$Online[-as.numeric(test_data)]),Loan=factor(UniversalBank$Personal.Loan[-as.numeric(test_data)]))
+#naive bayes
+mod<-naiveBayes(Loan~CC+Online,data=X)
+
+predict(mod,data.frame(Online=as.factor(1),CC=as.factor(1)),type='raw')
+
+
+#output is 0(0.8898454) 1( 0.1101546)  tha answer is same with question E.
