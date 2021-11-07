@@ -1,0 +1,84 @@
+---
+title: "hw4"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library(tidyverse) 
+library(factoextra) 
+library(caret)
+library(ggplot2)
+
+#a
+data1<-read.csv("C:/Users/Administrator/Desktop/Pharmaceuticals.csv")
+#normalization
+norm_data<- preProcess(data1[,3:11], method=c("center", "scale"))
+norm<-predict(norm_data,data1[,3:11])
+#set seed to make sure the same results each time.
+set.seed(1234)
+#get the distance between variables and Visualize the distance.
+distance <- get_dist(norm)
+fviz_dist(distance)
+#use elbow to find out the k value
+fviz_nbclust(norm, kmeans, method = "wss")
+#use silhouette find out the number of clusters value is 5.
+fviz_nbclust(norm, kmeans, method = "silhouette")
+#using the elbow method, we find out that the optimal k level is 5 because that is where it looks like an elbow in the chart .by using the silhouette method, we look for the largest average width, which k is 5.
+#use kmeans to cluster
+kmodel <- kmeans(norm, centers = 5, nstart = 25)# # k = 5, number of restarts = 25
+kmodel$centers
+kmodel$size
+kmodel
+#cluster plot
+fviz_cluster(kmodel,data=norm)
+```
+#b
+kmodel
+#Market_Cap       Beta    PE_Ratio        ROE        ROA Asset_Turnover    Leverage Rev_Growth Net_Profit_Margin
+#1 -0.03142211 -0.4360989 -0.31724852  0.1950459  0.4083915      0.1729746 -0.27449312 -0.7041516       0.556954446
+#2 -0.87051511  1.3409869 -0.05284434 -0.6184015 -1.1928478     -0.4612656  1.36644699 -0.6912914      -1.320000179
+#3 -0.43925134 -0.4701800  2.70002464 -0.8349525 -0.9234951      0.2306328 -0.14170336 -0.1168459      -1.416514761
+#4  1.69558112 -0.1780563 -0.19845823  1.2349879  1.3503431      1.1531640 -0.46807818  0.4671788       0.591242521
+#5 -0.76022489  0.2796041 -0.47742380 -0.7438022 -0.8107428     -1.2684804  0.06308085  1.5180158      -0.006893899
+#cluster1-(5,9,14,20) cluster1 has low market capitalization,beta,pe ratio and leverage.
+#cluster2-(2,18) cluster2 has highest beta and leverage,low retuen on assets.
+#cluster3-(12,6,8) clustr3 has highest pe ratio,low net profit margin.
+#cluster4-(21,7,10,4,16,19,1,3) cluster 4 has highest market capitalization,lowest leverage.
+#cluster5-(11,17,15,18) cluster 5 has highest revenue growth,low asset turnover.
+
+#c.
+#Yes, there a pattern in the clusters with respect to median recommendation.
+table(kmodel$cluster,data1$Median_Recommendation)
+# Hold      Moderate Buy  Moderate Sell  Strong Buy
+#     4            1             2          1
+#     2            1             0          0
+#     1            1             0          0
+#     2            2             0          0
+#     0            2             2          0
+#use ggplot to look at the frequency of median recommandation in the 5 cluster.
+dat_tab<-data.frame(table(kmodel$cluster,data1$Median_Recommendation))
+ggplot(aes(x=Var1,y=Var2,fill=Freq),data=dat_tab)+geom_tile()+ggtitle('frequency of cluster')
+#from the plots we can know that cluster1 most is hold and moderate sell,cluster2 most is hold, cluster3 most is hold and moderate buy, cluster4 most is hold and moderate buy and cluster5 most is moderate buy and moderate sell.
+
+
+#d.
+#According to median recommendation we can name like:
+#cluster1-very good 
+#cluster2-below average 
+#cluster3-average 
+#cluster4-above average 
+#cluster5-bad 
+
+#Or according to 1-9 varables we can name like:
+#cluster1-low market capitalization,beta,pe ratio and leverage.
+#cluster2- highest beta and leverage,low retuen on assets.
+#cluster3-highest pe ratio,low net profit margin.
+#cluster4- highest market capitalization,lowest leverage.
+#cluster5-highest revenue growth,low asset turnover.
+
+
