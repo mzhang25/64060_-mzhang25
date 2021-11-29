@@ -1,0 +1,93 @@
+---
+title: "hw5"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library(readr)
+library(cluster)
+library(dplyr)
+library(caret)
+library(factoextra) 
+
+Cereals <- read_csv("C:/Users/Administrator/Desktop/Cereals.csv")
+# Remove the missing values.
+data <- na.omit(Cereals)
+#check the missing values.
+head(data)
+##1
+#use preprocess to scale the data for clustering later.
+norm_data<- preProcess(data[4:16], method=c("center", "scale"))
+norm_data<-predict(norm_data,data[4:16])
+# get the Euclidean distance 
+distance <- dist(norm_data[1:13], method = "euclidean")
+#single linkage, complete linkage, average linkage, and Ward.
+hc_single <- agnes(norm_data, method = "single")
+hc_complete <- agnes(norm_data, method = "complete")
+hc_average <- agnes(norm_data, method = "average")
+hc_ward <- agnes(norm_data, method = "ward")
+#use plot to see the results of the coefficients,highest coefficients means best methods.
+print(hc_single)  #0.6067
+print(hc_complete)#0.8353
+print(hc_average) #0.7766
+print(hc_ward)    #0.9046
+# ward agglomerative coefficient is the highest, so this is the best method.
+```
+```{r}
+##2 
+#use hclust to visualize the ward linkage.
+best_cluster<-hclust(distance,method = "ward.D")
+plot(best_cluster, cex = 0.6, hang=-1)
+rect.hclust(best_cluster,k=4)
+label<-cutree(hc_ward, 6)
+label
+#from the plot  4 clusters i would choose.            
+```
+```{r}
+##3
+#separate the data to two parts, 50%A and50% B
+set.seed(1234)
+train_ID<-sample(1:nrow(norm_data),0.5*nrow(norm_data))
+train<-norm_data[train_ID,]#a
+test<-norm_data[-train_ID,]#b
+#use cutree to cluster to 4 parts and hclust to clustering by distance.then calculate the distances of points to the every cluster's central points.
+global_clust<-cutree(hclust(distance,method = "ward.D"),k=4)
+global_cent<-aggregate(.~global_clust,data=norm_data,FUN=mean)
+
+train_clust<-cutree(hclust(dist(train),method = "ward.D"),k=4)
+train_cent<-aggregate(.~train_clust,data=train,FUN=mean)
+
+#The first loop means calculate all the distances of points to the central point, second loop is calculate the train's distances of points to the central point.
+#think about every cluster is a circle. use sum((x-x.clust)^2 calculate each point to central point.
+test_dist<-apply(test,1,function(x) {
+  apply(train_cent[,-1],1,function(x.clust) {
+    sum((x-x.clust)^2)
+  })
+})
+test_clust<-apply(test_dist,2,which.min)
+
+#through global_cluster calculate the label then corresponding all the data label.Through this way to get the approximate results.
+label<-as.numeric(as.character((factor(test_clust,levels=order(apply(train_cent[,-1]^2,1,sum)),
+              labels = order(apply(global_cent[,-1]^2,1,sum))))))            
+
+table(global_clust[-train_ID],label)
+# from the table i found out the cluster Assignments don't work well,only 2 cluster working well. 4 cluster is too much for this data.
+```
+
+##4 
+#The data should not be normalized, cause the concrete values are used as results we should make is meaningful,normalized is a method for comprehensive evaluation of multiple data in order to eliminate the effect of variable units.After normalized the result can be negative then we can't understand what's the actually meaning.
+
+
+
+
+
+
+
+
+
