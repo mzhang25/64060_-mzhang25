@@ -1,0 +1,164 @@
+---
+title: "mzhang25_final"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+#load the packages that we need.
+library(caret)
+library(class)
+library(dummies)
+library(tidyverse) 
+library(factoextra)
+library(ggplot2)
+library(cluster)
+library(GGally)
+#Load in the house data
+house <- read.csv("C:/Users/Administrator/Desktop/data.csv")
+#check and remove all missing data.
+house<-na.omit(house)
+#for the data 1(date)15(street)17(statezip)18(country)are useless for analyse.
+head(house)
+data<-house[,c(-1,-15,-17,-18)]
+#Plot the graph shows the price change with city.
+data%>%filter(price!=0)%>%group_by(city)%>%summarise(price=mean(price)/1000)%>%
+ggplot(aes(y = price,x = reorder(city, -price),group=1))+geom_line(fill = 'green')+
+xlab('city')+ylab('Price (K)')+geom_area(fill='green')+geom_point()+
+theme(axis.text.x = element_text(angle=90))
+#shows the frequency of sqft house and check their percentage. 
+hist(data$sqft_living)
+house_sqft<-ifelse(data$sqft_living<=2000,"small house",ifelse(data$sqft_living<=4000,"medium house","large house"))
+freq<-data.frame(table(house_sqft))
+freq$percentage<-paste(round(freq$Freq/nrow(norm)*100,2),"%")
+freq
+#plot histogram.
+hist(data$yr_built, breaks = 10, col = "green", main = "Histogram of yr_built", xlab = "Height Bin")
+```
+```{r}
+# We need to normalize all the continuous variables for later cluster.
+norm_data<- preProcess(data, method=c("center", "scale"))
+norm<-predict(norm_data,data)
+
+#First look at the sqft of living and other area.
+#I want to use  sqft of living to do the cluster ( sqft_living+sqft_lot+sqft_above+sqft_basement)
+norm_sqft<-norm[,c(4,5,10,11)]
+set.seed(1234)
+distance <- get_dist(norm_sqft)
+fviz_dist(distance)
+fviz_nbclust(norm_sqft, kmeans, method = "wss")
+fviz_nbclust(norm_sqft, kmeans, method = "silhouette")
+# BY using the elbow method, we get k = 5.
+kmodel_sqft<- kmeans(norm_sqft, centers = 5, nstart = 25)
+kmodel_sqft$centers
+kmodel_sqft$size
+kmodel_sqft
+fviz_cluster(kmodel_sqft,data=norm_sqft)
+#The first cluster "single house".
+#The second cluster "luxury house".
+#the third cluster"general family".
+#the forth cluster"gengeral family with large garden".
+#the fifth cluster"large house".
+
+
+# plot the price and condition with cluster fill.
+fvizgg<-ggplot(data = norm, mapping = aes(x = price,y = condition, color = factor(kmodel_sqft$cluster)))
+fvizgg <- fvizgg + geom_point(pch = 20, size = 3)
+fvizgg+ scale_colour_manual(values = c("red","blue","yellow","green","black"))
+#table the price with cluster_sqft.
+table(norm$city,kmodel_sqft$cluster)
+#calculate the mean sqft.
+aggregate(house$sqft_living,list(kmodel_sqft$cluster),mean)
+```
+```{r}
+#Second look at house condition. 
+#i will use condition and year od bulit and year of renovated to do cluster (condition+yr_year+yr_renovated)
+norm_condition<-norm[,c(9,12,13)]
+set.seed(1234)
+distance <- get_dist(norm_condition)
+fviz_dist(distance)
+fviz_nbclust(norm_condition, kmeans, method = "wss")
+fviz_nbclust(norm_condition, kmeans, method = "silhouette")
+#  using the elbow method, we get k = 10.
+kmodel_condition<- kmeans(norm_condition, centers = 10, nstart = 25)
+kmodel_condition$centers
+kmodel_condition$size
+kmodel_condition
+fviz_cluster(kmodel_condition,data=norm_condition)
+
+ table(data$city,kmodel_condition$cluster)
+#cluster1-good condition,new house and no renovated recent.
+#cluster2-good condition,old house and have renovated recent.
+#cluster3-bad condition,new house and no renovated recent.
+#cluster4-bad condition,old house and have renovated recent.
+#cluster5-good condition,old house and have renovated recent.
+#cluster6-bad condition,old house and have renovated recent.
+#cluster7-good condition,new house and have renovated recent.
+#cluster8-good condition,old house and no renovated recent.
+#cluster9-good condition,old house and no renovated recent.
+#cluster10-bad condition,new house and have renovated recent.
+#plot the price with condition.
+fvizgg<-ggplot(data = norm, mapping = aes(x = price,y = condition, color = factor(kmodel_condition$cluster)))
+fvizgg <- fvizgg + geom_point(pch = 20, size = 3)
+fvizgg+ scale_colour_manual(values = c("red","blue","yellow","green","black","pink","purple","orange","grey","brown"))
+```
+```{r}
+#Third cluster by using linear model and k-means,to assign a certain supervised performance to the unsupervised model.
+#linear model can be a good way to filter important variables. A linear regression model was fitted to the data and l selection of the significant features with high scores.
+house <- house%>%filter(price!=0)%>%mutate(price=log(price))
+data_predict<-house[,c(-1,-15,-16,-17,-18)]
+#separate to train and test to do linear model.
+samp<-sample(1:nrow(data_predict),0.8*nrow(data_predict))
+train<-data_predict[samp,]
+test<-data_predict[-samp,]
+#linear model 
+fit.lm<-lm(price~.,data=train)
+summary(fit.lm)
+# use step to do better linear model.
+fit.lm2<-step(fit.lm)
+summary(fit.lm2)
+# prediction
+pred.lm<-predict(fit.lm2,test)
+plot(pred.lm,test$price)
+abline(a=0,b=1,col=2,lty=2)
+#greatest impact on the house price are bedrooms, bathrooms and sqft_ living,sqft_lot, floors, view ,yr_built and condition.
+#MSE
+sum((pred.lm-test$price)^2)
+
+#use important variable from linear model to do the cluster. 
+norm_total<-norm[,c(-7,-13,-14)]
+set.seed(1234)
+distance <- get_dist(norm_total)
+fviz_dist(distance)
+fviz_nbclust(norm_total, kmeans, method = "wss")
+fviz_nbclust(norm_total, kmeans, method = "silhouette")
+# By using the elbow method, we get k = 3
+kmodel_total<- kmeans(norm_total, centers = 3, nstart = 25)
+kmodel_total$centers
+kmodel_total$size
+kmodel_total
+fviz_cluster(kmodel_total,data=norm_total)
+#plot the city and price with cluster 3.
+table(data$city,kmodel_total$cluster)
+table(data$price,kmodel_total$cluster)
+#cluster1-high price,lot of bedroom and bathroom,large sqft of living and lot,more floor and view,good condition,large sqft_above,samll sqft_basement,old build.
+#cluster2-regular price, large amount bedroom and bathroom,big sqft of living and lot,large amount floor,bad view,bad condition,small sqft_above,small sqft_basement,new build.
+#cluster3-low price,small amount bedroom and bathroom,small sqft of living and lot,more floor waterfront and view,bad condition,small sqft_above,large sqft_basement,old build.
+```
+
+#use silhouette to check the result of total cluster
+sil<-silhouette(kmodel_total$cluster,distance)
+summary(sil)$clus.avg.widths
+#cluster2 better than cluster 3 and cluster 1.
+
+#check the cluster3 relation with price and sqft.
+p<-ggplot(data = norm, mapping = aes(x = price,y = sqft_living, color = factor(kmodel_total$cluster)))
+p <- p + geom_point(pch = 20, size = 3)
+p + scale_colour_manual(values = c("red","blue","yellow"))
+
+
+
